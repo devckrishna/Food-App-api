@@ -1,5 +1,6 @@
 const express = require('express');
 const morgan = require('morgan');
+const foodRoute = require('./routes/foodRoute');
 
 const app = express();
 
@@ -9,4 +10,6 @@ if (process.env.NODE_ENV === 'development') {
 
 app.use(express.json());
 
-module.exports=app;
+app.use('/api/v1/food', foodRoute);
+
+module.exports = app;
