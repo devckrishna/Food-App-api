@@ -23,6 +23,7 @@ const createSendToken = (user, statusCode, res) => {
 
   user.password = undefined;
   res.status(statusCode).json({
+    token,
     status: 'sucess',
     data: {
       user,
@@ -36,7 +37,7 @@ exports.signUp = async (req, res, next) => {
       name: req.body.name,
       email: req.body.email,
       password: req.body.password,
-      confirmPassword: req.body.confirmPassword
+      confirmPassword: req.body.confirmPassword,
     });
 
     createSendToken(newUser, 201, res);
@@ -81,4 +82,53 @@ exports.logOut = (req, res) => {
   res.status(200).json({
     status: 'success',
   });
+};
+
+exports.protect = async (req, res, next) => {
+  try {
+    let token;
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith('Bearer')
+    ) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if(req.cookies.jwt){
+      token = req.cookies.jwt;
+    }
+
+    if (!token) {
+      return next(new Error('you are not logged in'));
+    }
+
+    const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+
+    const currentUser = await User.findById(decoded.id);
+    if (!currentUser) {
+      return next(' the user no longer exists');
+    }
+
+    if (currentUser.changedPasswordAfter(decoded.iat)) {
+      return next(new Error('user changed password'));
+    }
+
+    req.user = currentUser;
+    // req.locals.user = currentUser;
+    next();
+  } catch (err) {
+    res.status(500).json({
+      status: 'fail',
+      message: err.message,
+    });
+    next();
+  }
+  
+};
+
+exports.restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(new Error('permission renied'));
+    }
+    next();
+  };
 };
