@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
+const sendEmail = require('../utils/email');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -92,7 +93,7 @@ exports.protect = async (req, res, next) => {
       req.headers.authorization.startsWith('Bearer')
     ) {
       token = req.headers.authorization.split(' ')[1];
-    } else if(req.cookies.jwt){
+    } else if (req.cookies.jwt) {
       token = req.cookies.jwt;
     }
 
@@ -113,6 +114,7 @@ exports.protect = async (req, res, next) => {
 
     req.user = currentUser;
     // req.locals.user = currentUser;
+    // console.log("passed")
     next();
   } catch (err) {
     res.status(500).json({
@@ -121,7 +123,7 @@ exports.protect = async (req, res, next) => {
     });
     next();
   }
-  
+
 };
 
 exports.restrictTo = (...roles) => {
@@ -132,3 +134,77 @@ exports.restrictTo = (...roles) => {
     next();
   };
 };
+
+exports.forgotPassword = async (req, res, next) => {
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) {
+    return next(new Error('This is no user with this email'));
+  }
+
+  const resetToken = user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false });
+  // console.log("ths part")
+
+  const resetURL = `${req.protocol}://${req.get(
+    'host'
+  )}/api/v1/users/resetPassword/${resetToken}`;
+
+  const message = `Forgot your password? submit a request with your password and email at ${resetURL}`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: 'Your password reset token (valid for 10 min)',
+      message,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Token sent to email!',
+    });
+  } catch (err) {
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return next(new Error('Why!!!!!!!!'));
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(req.params.token)
+    .digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    return next(new Error('Token is invalid'));
+  }
+
+  user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+
+  createSendToken(user, 200, res);
+};
+
+exports.updatePassword=async (req,res,next)=>{
+  const user = await User.findById(req.user.id).select('+password');
+  
+  if(!(await user.correctPassword(req.body.currentPassword,user.password))){
+    return next(new Error("current password incorrect"))
+  }
+  
+  user.password=req.body.password;
+  user.confirmPassword=req.body.confirmPassword;
+  await user.save();
+  
+  createSendToken(user,200,res);
+}
