@@ -2,6 +2,7 @@ const fs = require('fs');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Food = require('../models/food');
+const Pizza = require('../models/pizzaModel');
 
 dotenv.config({ path: './config.env' });
 
@@ -19,11 +20,12 @@ mongoose
   })
   .then(() => console.log('Database connection succesfull'));
 
-const foods = JSON.parse(fs.readFileSync(`${__dirname}/foods.json`, `utf-8`));
+const pizzas = JSON.parse(fs.readFileSync(`${__dirname}/pizzas.json`, `utf-8`));
 
 const importData = async () => {
   try {
-    await Food.create(foods);
+    // await Food.create(foods);
+    await Pizza.create(pizzas);
     console.log('Data successfull leaded!');
   } catch (err) {
     console.log(err);
@@ -33,7 +35,9 @@ const importData = async () => {
 
 const deleteData = async () => {
   try {
-    await Food.deleteMany();
+    // await Food.deleteMany();
+    await Pizza.deleteMany();
+
     console.log('Data deleted');
   } catch (err) {
     console.log(err);

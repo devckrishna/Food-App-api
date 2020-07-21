@@ -1,30 +1,32 @@
 const express = require('express');
-const foodController = require('../controllers/foodController');
+const pizzaController = require('../controllers/pizzaController');
 const authController = require('../controllers/authController');
 
 const router = express.Router();
 
 router
   .route('/')
-  .get( foodController.getAllFoodItems)
-  .post(
-    authController.protect,
-    authController.restrictTo('admin'),
-    foodController.createFoodItems
-  );
-
-router
-  .route('/:id')
-  .get(foodController.getFoodItemById)
-  .delete(
-    authController.protect,
-    authController.restrictTo('admin'),
-    foodController.deleteFoodItem
+  .get(
+    pizzaController.getAllPizzas
   )
   .post(
     authController.protect,
     authController.restrictTo('admin'),
-    foodController.updateFoodItem
+    pizzaController.createPizza
+  );
+
+router
+  .route('/:id')
+  .get(pizzaController.getPizzabyId)
+  .patch(
+    authController.protect,
+    authController.restrictTo('admin'),
+    pizzaController.updatePizza
+  )
+  .post(
+    authController.protect,
+    authController.restrictTo('admin'),
+    pizzaController.createPizza
   );
 
 module.exports = router;
