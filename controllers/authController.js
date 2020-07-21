@@ -12,20 +12,20 @@ const signToken = (id) => {
 
 const createSendToken = (user, statusCode, res) => {
   const token = signToken(user._id);
-  const cookieOption = {
+  const cookieOptions = {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
   };
-  if (process.env.NODE_ENV === 'production') cookieOption.secure = true;
+  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
 
-  res.cookie('jwt', token, cookieOption);
-
+  res.cookie('jwt', token, cookieOptions);
   user.password = undefined;
+
   res.status(statusCode).json({
+    status: 'success',
     token,
-    status: 'sucess',
     data: {
       user,
     },
@@ -38,7 +38,7 @@ exports.signUp = async (req, res, next) => {
       name: req.body.name,
       email: req.body.email,
       password: req.body.password,
-      confirmPassword: req.body.confirmPassword,
+      passwordConfirm: req.body.passwordConfirm,
     });
 
     createSendToken(newUser, 201, res);
@@ -56,12 +56,12 @@ exports.logIn = async (req, res, next) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return next(new Error('Please provide correct email or password'));
+      return next(new Error('Please provide email and password!'));
     }
-
     const user = await User.findOne({ email }).select('+password');
+
     if (!user || !(await user.correctPassword(password, user.password))) {
-      return next(new Error('incorrect email or password'));
+      return next(new Error('Incorrect email or password'));
     }
 
     createSendToken(user, 200, res);
@@ -98,23 +98,22 @@ exports.protect = async (req, res, next) => {
     }
 
     if (!token) {
-      return next(new Error('you are not logged in'));
+      return next(new Error('incorect password or email'));
     }
 
     const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
     const currentUser = await User.findById(decoded.id);
     if (!currentUser) {
-      return next(' the user no longer exists');
+      return next(new AppError('user does not exist'));
     }
 
     if (currentUser.changedPasswordAfter(decoded.iat)) {
-      return next(new Error('user changed password'));
+      return next(new AppError('user changed the password'));
     }
 
     req.user = currentUser;
-    // req.locals.user = currentUser;
-    // console.log("passed")
+    res.locals.user = currentUser;
     next();
   } catch (err) {
     res.status(500).json({
@@ -123,7 +122,6 @@ exports.protect = async (req, res, next) => {
     });
     next();
   }
-
 };
 
 exports.restrictTo = (...roles) => {
@@ -195,16 +193,16 @@ exports.resetPassword = async (req, res, next) => {
   createSendToken(user, 200, res);
 };
 
-exports.updatePassword=async (req,res,next)=>{
+exports.updatePassword = async (req, res, next) => {
   const user = await User.findById(req.user.id).select('+password');
-  
-  if(!(await user.correctPassword(req.body.currentPassword,user.password))){
-    return next(new Error("current password incorrect"))
+
+  if (!(await user.correctPassword(req.body.currentPassword, user.password))) {
+    return next(new Error('current password incorrect'));
   }
-  
-  user.password=req.body.password;
-  user.confirmPassword=req.body.confirmPassword;
+
+  user.password = req.body.password;
+  user.confirmPassword = req.body.confirmPassword;
   await user.save();
-  
-  createSendToken(user,200,res);
-}
+
+  createSendToken(user, 200, res);
+};

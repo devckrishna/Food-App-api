@@ -7,6 +7,8 @@ const router = express.Router();
 router
   .route('/')
   .get(
+    authController.protect,
+    authController.restrictTo('admin'),
     pizzaController.getAllPizzas
   )
   .post(
